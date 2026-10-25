@@ -1,25 +1,35 @@
-import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
 import type { SimuladorBanco } from "./simulator.interface.js";
+import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
+import { atrasoAleatorio } from "../utils/delay.js";
+import { calcularParcelaPrice, arredondar } from "../utils/finance.js";
 
 export class BancoBMJ implements SimuladorBanco {
   readonly nome = "Banco BMJ";
-  async simular(dados: EntradaSimulacao): Promise<SaidaSimulacao> {
-    const TAXA_JUROS = 0.021; // 2,1% ao mês
-    const MARGEM_MAXIMA = dados.salario * 0.35;
+  private readonly TAXA = 0.021; // 2.1% ao mês
 
-     // Cálculo da parcela com juros compostos (Tabela Price)
-    const fator = Math.pow(1 + TAXA_JUROS, dados.parcelas);
-    const valorParcela = dados.valorEmprestimo * ((TAXA_JUROS * fator) / (fator - 1));
-    const valorTotal = valorParcela * dados.parcelas;
+  // 1. Simula a chamada a uma API externa (com formato de resposta próprio do BMJ)
+  private async chamarApi(dados: EntradaSimulacao) {
+    await atrasoAleatorio(); // Finge que demorou
+    
+    return {
+      resultado_analise: "APROVADO",
+      juros_aplicado: this.TAXA,
+    };
+  }
 
-    const aprovado = valorParcela <= MARGEM_MAXIMA;
+  // 2. O método obrigatório da interface que "traduz" a resposta
+  async simular(entrada: EntradaSimulacao): Promise<SaidaSimulacao> {
+    const respostaBruta = await this.chamarApi(entrada);
+
+    const valorParcela = calcularParcelaPrice(entrada.valorEmprestimo, respostaBruta.juros_aplicado, entrada.parcelas);
+    const valorTotal = arredondar(valorParcela * entrada.parcelas);
 
     return {
-      banco: "Banco BMJ",
-      status: aprovado ? "Aprovado" : "Reprovado",
-      taxaJurosMensal: TAXA_JUROS,
-      valorParcela: Number(valorParcela.toFixed(2)),
-      valorTotal: Number(valorTotal.toFixed(2)),
+      banco: this.nome,
+      status: "Aprovado",
+      taxaJurosMensal: respostaBruta.juros_aplicado,
+      valorParcela,
+      valorTotal
     };
-    }
+  }
 }

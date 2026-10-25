@@ -1,35 +1,51 @@
-import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
 import type { SimuladorBanco } from "./simulator.interface.js";
+import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
+import { atrasoAleatorio } from "../utils/delay.js";
+import { calcularParcelaPrice, arredondar } from "../utils/finance.js";
 
 export class BancoCaixote implements SimuladorBanco {
   readonly nome = "Banco Caixote";
-  async simular(dados: EntradaSimulacao): Promise<SaidaSimulacao> {
-    const TAXA_JUROS = 0.0145; // 1,45% ao mês
-    const MARGEM_MAXIMA = dados.salario * 0.30;
-    
+  private readonly TAXA = 0.0145; // 1.45% ao mês
+
+  // 1. A API do Caixote tem regras chatas e um formato diferente do BMJ
+  private async chamarApi(dados: EntradaSimulacao) {
+    await atrasoAleatorio();
+
+    // REGRA EXIGIDA: Lança um erro (simula sistema fora do ar) se o CPF terminar em 0
+    if (dados.cpf.endsWith("0")) {
+      throw new Error("Sistema do Caixote retornou Erro 503.");
+    }
+
+    // REGRA EXIGIDA: Reprova automaticamente qualquer simulação acima de 48 meses
     if (dados.parcelas > 48) {
+      return { aprovacao: false, detalhe: "O prazo máximo permitido é 48 meses." };
+    }
+
+    return { aprovacao: true, taxa_operacao: this.TAXA };
+  }
+
+  async simular(entrada: EntradaSimulacao): Promise<SaidaSimulacao> {
+    const resposta = await this.chamarApi(entrada);
+
+    // Se a API reprovou, não fazemos cálculos de juros. Só devolvemos o motivo.
+    if (!resposta.aprovacao) {
       return {
-        banco: "Banco Caixote",
+        banco: this.nome,
         status: "Reprovado",
-        taxaJurosMensal: TAXA_JUROS,
-        valorParcela: 0,
-        valorTotal: 0,
+        motivo: resposta.detalhe
       };
     }
 
-    // Cálculo da parcela com juros compostos (Tabela Price)
-    const fator = Math.pow(1 + TAXA_JUROS, dados.parcelas);
-    const valorParcela = dados.valorEmprestimo * ((TAXA_JUROS * fator) / (fator - 1));
-    const valorTotal = valorParcela * dados.parcelas;
-
-    const aprovado = valorParcela <= MARGEM_MAXIMA;
+    // Se aprovou, faz a matemática financeira
+    const valorParcela = calcularParcelaPrice(entrada.valorEmprestimo, resposta.taxa_operacao!, entrada.parcelas);
+    const valorTotal = arredondar(valorParcela * entrada.parcelas);
 
     return {
-      banco: "Banco Caixote",
-      status: aprovado ? "Aprovado" : "Reprovado",
-      taxaJurosMensal: TAXA_JUROS,
-      valorParcela: Number(valorParcela.toFixed(2)),
-      valorTotal: Number(valorTotal.toFixed(2)),
+      banco: this.nome,
+      status: "Aprovado",
+      taxaJurosMensal: resposta.taxa_operacao,
+      valorParcela,
+      valorTotal
     };
-    }
+  }
 }
