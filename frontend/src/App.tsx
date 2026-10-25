@@ -1,122 +1,101 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react";
+import { SimulationForm } from "./components/SimulationForm";
+import { ResultCard } from "./components/ResultCard";
+import { simular, ErroValidacao } from "./api";
+import type { EntradaSimulacao, SaidaSimulacao } from "./types";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [camposInvalidos, setCamposInvalidos] = useState<Record<string, string[]>>({});
+  const [resultados, setResultados] = useState<SaidaSimulacao[]>([]);
+  const [ultimaEntrada, setUltimaEntrada] = useState<EntradaSimulacao | null>(null);
+
+  const realizarSimulacao = async (entrada: EntradaSimulacao) => {
+    setCarregando(true);
+    setErro("");
+    setCamposInvalidos({});
+    setResultados([]);
+    setUltimaEntrada(entrada);
+
+    try {
+      setResultados(await simular(entrada));
+    } catch (err) {
+      if (err instanceof ErroValidacao) setCamposInvalidos(err.campos);
+      else setErro(err instanceof Error ? err.message : "Erro inesperado.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // Melhor oferta: menor valor total entre os aprovados (só faz sentido com 2 ou mais)
+  const aprovados = resultados.filter(
+    (r) => r.status === "Aprovado" && r.valorTotal !== undefined
+  );
+  const melhor =
+    aprovados.length > 1
+      ? aprovados.reduce((a, b) => (a.valorTotal! <= b.valorTotal! ? a : b))
+      : null;
+
+  const temIndisponivel = resultados.some((r) => r.status === "Indisponivel");
+  const salario = ultimaEntrada?.salario ?? 0;
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <main className="pagina">
+      <header className="topo">
+        <span className="selo">Simulador de consignado</span>
+        <h1>
+          Compare seu <span className="destaque">crédito consignado</span>
+        </h1>
+        <p>Preencha os dados e veja, em segundos, a resposta de cada banco parceiro.</p>
+      </header>
 
-      <div className="ticks"></div>
+      <div className="layout">
+        <SimulationForm carregando={carregando} onSubmit={realizarSimulacao} />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        <section className="resultados" aria-live="polite">
+          {Object.keys(camposInvalidos).length > 0 && (
+            <div className="alerta" role="alert">
+              <strong>Confira os dados enviados:</strong>
+              <ul>
+                {Object.entries(camposInvalidos).map(([campo, msgs]) => (
+                  <li key={campo}>{campo}: {msgs.join(", ")}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+          {erro && <div className="alerta" role="alert">{erro}</div>}
+
+          {carregando && (
+            <>
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </>
+          )}
+
+          {!carregando && resultados.length === 0 && !erro &&
+            Object.keys(camposInvalidos).length === 0 && (
+              <p className="vazio">Os resultados dos bancos vão aparecer aqui.</p>
+          )}
+
+          {resultados.map((r) => (
+            <ResultCard key={r.banco} resultado={r} salario={salario} melhorOferta={r === melhor} />
+          ))}
+
+          {temIndisponivel && ultimaEntrada && !carregando && (
+            <button className="botao botao-secundario"
+              onClick={() => realizarSimulacao(ultimaEntrada)}>
+              Tentar novamente
+            </button>
+          )}
+        </section>
+      </div>
+
+      <footer className="rodape">
+        Ambiente de demonstração: os bancos e os dados são fictícios.
+      </footer>
+    </main>
+  );
 }
-
-export default App
