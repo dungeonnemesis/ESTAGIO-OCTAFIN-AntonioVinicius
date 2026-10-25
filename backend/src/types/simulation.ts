@@ -5,6 +5,7 @@ export interface EntradaSimulacao {
     salario: number;
     valorEmprestimo: number;
     parcelas: number;
+    email: string; 
 }
 
 export interface SaidaSimulacao {
@@ -13,4 +14,5 @@ export interface SaidaSimulacao {
     taxaJurosMensal: number;
     valorParcela: number;
     valorTotal: number;
+    motivo?: string;
 }
