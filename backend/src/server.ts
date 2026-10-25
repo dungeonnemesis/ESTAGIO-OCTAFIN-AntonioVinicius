@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors"; 
 import { SimulacaoService } from "./services/simulation.service.js";
 import { simulacaoSchema } from "./validators/simulation.validator.js";
 import { BancoCaixote } from "./simulators/caixote.simulator.js";
@@ -7,6 +8,7 @@ import { BancoBMJ } from "./simulators/bmj.simulator.js";
 const app = express();
 const porta = 3000;
 
+app.use(cors()); // 
 app.use(express.json());
 
 app.post("/simular", async (req, res) => {
