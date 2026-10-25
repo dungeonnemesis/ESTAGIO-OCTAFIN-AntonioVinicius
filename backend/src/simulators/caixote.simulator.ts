@@ -43,7 +43,7 @@ export class BancoCaixote implements SimuladorBanco {
     return {
       banco: this.nome,
       status: "Aprovado",
-      taxaJurosMensal: resposta.taxa_operacao,
+      taxaJurosMensal: resposta.taxa_operacao!,
       valorParcela,
       valorTotal
     };
