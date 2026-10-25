@@ -11,8 +11,8 @@ export interface EntradaSimulacao {
 export interface SaidaSimulacao {
     banco: string;
     status: "Aprovado" | "Reprovado" | "Indisponivel";
-    taxaJurosMensal: number;
-    valorParcela: number;
-    valorTotal: number;
+    taxaJurosMensal?: number;
+    valorParcela?: number;
+    valorTotal?: number;
     motivo?: string;
 }
