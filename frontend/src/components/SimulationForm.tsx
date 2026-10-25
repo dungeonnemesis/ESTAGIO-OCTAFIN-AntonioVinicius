@@ -98,6 +98,7 @@ export function SimulationForm({ carregando, onSubmit }: Props) {
       <button className="botao" type="submit" disabled={carregando}>
         {carregando ? "Consultando bancos..." : "Simular empréstimo"}
       </button>
+      <p className="aviso">Simulação gratuita e sem compromisso. Seus dados são usados apenas nesta simulação.</p>
     </form>
   );
 }

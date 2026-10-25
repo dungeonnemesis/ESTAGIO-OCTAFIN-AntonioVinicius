@@ -97,3 +97,4 @@ h1 { font-size: clamp(28px, 6vw, 44px); line-height: 1.1; margin: 12px 0 8px; }
 @keyframes pulse { to { background-position: -200% 0; } }
 
 .rodape { margin-top: 32px; font-size: 13px; color: #5b6b7b; text-align: center; }
+.aviso { margin: 0; font-size: 13px; color: #5b6b7b; text-align: center; }
