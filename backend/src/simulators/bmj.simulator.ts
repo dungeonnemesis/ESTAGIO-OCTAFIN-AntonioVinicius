@@ -2,6 +2,7 @@ import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
 import type { SimuladorBanco } from "./simulator.interface.js";
 
 export class BancoBMJ implements SimuladorBanco {
+  readonly nome = "Banco BMJ";
   async simular(dados: EntradaSimulacao): Promise<SaidaSimulacao> {
     const TAXA_JUROS = 0.021; // 2,1% ao mês
     const MARGEM_MAXIMA = dados.salario * 0.35;
