@@ -1,122 +1,113 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState} from 'react';
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+// Tipagem baseada no que construímos no Backend
+interface SaidaSimulacao {
+  banco: string;
+  status: "Aprovado" | "Reprovado" | "Indisponivel";
+  taxaJurosMensal?: number;
+  valorParcela?: number;
+  valorTotal?: number;
+  motivo?: string;
 }
 
-export default App
+export default function App() {
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [resultados, setResultados] = useState<SaidaSimulacao[]>([]);
+
+  // Estados do Formulário
+  const [formData, setFormData] = useState({
+    nome: '', email: '', cpf: '', cnpj: '',
+    valorEmprestimo: 1000, salario: 3000, parcelas: 12
+  });
+
+  // Função que envia os dados para o Backend
+  const realizarSimulacao = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setCarregando(true);
+    setErro('');
+    setResultados([]);
+
+    try {
+      // Faz o POST para o nosso servidor na porta 3000
+      const resposta = await fetch('http://localhost:3000/simular', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          valorEmprestimo: Number(formData.valorEmprestimo),
+          salario: Number(formData.salario),
+          parcelas: Number(formData.parcelas)
+        })
+      });
+
+      const dados = await resposta.json();
+
+      if (!resposta.ok) {
+        // Se o Zod barrou, mostramos o erro
+        throw new Error(dados.erros ? 'Verifique os dados enviados (CPF/CNPJ inválido ou valores incorretos).' : dados.erro);
+      }
+
+      setResultados(dados);
+    } catch (err: any) {
+      setErro(err.message || 'Erro ao conectar com o servidor.');
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
+      <h1>💸 Simulador de Empréstimo</h1>
+      
+      <form onSubmit={realizarSimulacao} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '30px' }}>
+        <input placeholder="Nome Completo" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
+        <input type="email" placeholder="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+        <input placeholder="CPF (Apenas números)" required value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} />
+        <input placeholder="CNPJ da Empresa (Apenas números)" required value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
+        
+        <label>Valor do Empréstimo (R$):
+          <input type="number" min="1" required value={formData.valorEmprestimo} onChange={e => setFormData({...formData, valorEmprestimo: Number(e.target.value)})} />
+        </label>
+        
+        <label>Salário (R$):
+          <input type="number" min="1" required value={formData.salario} onChange={e => setFormData({...formData, salario: Number(e.target.value)})} />
+        </label>
+
+        <label>Parcelas (1 a 72):
+          <input type="number" min="1" max="72" required value={formData.parcelas} onChange={e => setFormData({...formData, parcelas: Number(e.target.value)})} />
+        </label>
+
+        <button type="submit" disabled={carregando} style={{ padding: '10px', cursor: 'pointer' }}>
+          {carregando ? 'A simular nos bancos...' : 'Simular Empréstimo'}
+        </button>
+      </form>
+
+      {erro && <p style={{ color: 'red' }}><strong>Erro:</strong> {erro}</p>}
+
+      {resultados.length > 0 && (
+        <div>
+          <h2>Resultados da Simulação:</h2>
+          {resultados.map((resultado, index) => (
+            <div key={index} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '8px' }}>
+              <h3>{resultado.banco}</h3>
+              <p><strong>Status:</strong> {resultado.status}</p>
+              
+              {resultado.status === 'Aprovado' && (
+                <>
+                  <p><strong>Taxa de Juros:</strong> {(resultado.taxaJurosMensal! * 100).toFixed(2)}% ao mês</p>
+                  <p><strong>Valor da Parcela:</strong> R$ {resultado.valorParcela?.toFixed(2)}</p>
+                  <p><strong>Valor Total:</strong> R$ {resultado.valorTotal?.toFixed(2)}</p>
+                </>
+              )}
+
+              {resultado.status !== 'Aprovado' && (
+                <p><strong>Motivo:</strong> {resultado.motivo}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
