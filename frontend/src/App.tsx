@@ -1,113 +1,101 @@
-import { useState} from 'react';
-
-// Tipagem baseada no que construímos no Backend
-interface SaidaSimulacao {
-  banco: string;
-  status: "Aprovado" | "Reprovado" | "Indisponivel";
-  taxaJurosMensal?: number;
-  valorParcela?: number;
-  valorTotal?: number;
-  motivo?: string;
-}
+import { useState } from "react";
+import { SimulationForm } from "./components/SimulationForm";
+import { ResultCard } from "./components/ResultCard";
+import { simular, ErroValidacao } from "./api";
+import type { EntradaSimulacao, SaidaSimulacao } from "./types";
+import "./App.css";
 
 export default function App() {
   const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState("");
+  const [camposInvalidos, setCamposInvalidos] = useState<Record<string, string[]>>({});
   const [resultados, setResultados] = useState<SaidaSimulacao[]>([]);
+  const [ultimaEntrada, setUltimaEntrada] = useState<EntradaSimulacao | null>(null);
 
-  // Estados do Formulário
-  const [formData, setFormData] = useState({
-    nome: '', email: '', cpf: '', cnpj: '',
-    valorEmprestimo: 1000, salario: 3000, parcelas: 12
-  });
-
-  // Função que envia os dados para o Backend
-  const realizarSimulacao = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const realizarSimulacao = async (entrada: EntradaSimulacao) => {
     setCarregando(true);
-    setErro('');
+    setErro("");
+    setCamposInvalidos({});
     setResultados([]);
+    setUltimaEntrada(entrada);
 
     try {
-      // Faz o POST para o nosso servidor na porta 3000
-      const resposta = await fetch('http://localhost:3000/simular', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          valorEmprestimo: Number(formData.valorEmprestimo),
-          salario: Number(formData.salario),
-          parcelas: Number(formData.parcelas)
-        })
-      });
-
-      const dados = await resposta.json();
-
-      if (!resposta.ok) {
-        // Se o Zod barrou, mostramos o erro
-        throw new Error(dados.erros ? 'Verifique os dados enviados (CPF/CNPJ inválido ou valores incorretos).' : dados.erro);
-      }
-
-      setResultados(dados);
-    } catch (err: any) {
-      setErro(err.message || 'Erro ao conectar com o servidor.');
+      setResultados(await simular(entrada));
+    } catch (err) {
+      if (err instanceof ErroValidacao) setCamposInvalidos(err.campos);
+      else setErro(err instanceof Error ? err.message : "Erro inesperado.");
     } finally {
       setCarregando(false);
     }
   };
 
+  // Melhor oferta: menor valor total entre os aprovados (só faz sentido com 2 ou mais)
+  const aprovados = resultados.filter(
+    (r) => r.status === "Aprovado" && r.valorTotal !== undefined
+  );
+  const melhor =
+    aprovados.length > 1
+      ? aprovados.reduce((a, b) => (a.valorTotal! <= b.valorTotal! ? a : b))
+      : null;
+
+  const temIndisponivel = resultados.some((r) => r.status === "Indisponivel");
+  const salario = ultimaEntrada?.salario ?? 0;
+
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <h1>💸 Simulador de Empréstimo</h1>
-      
-      <form onSubmit={realizarSimulacao} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '30px' }}>
-        <input placeholder="Nome Completo" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} />
-        <input type="email" placeholder="Email" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-        <input placeholder="CPF (Apenas números)" required value={formData.cpf} onChange={e => setFormData({...formData, cpf: e.target.value})} />
-        <input placeholder="CNPJ da Empresa (Apenas números)" required value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
-        
-        <label>Valor do Empréstimo (R$):
-          <input type="number" min="1" required value={formData.valorEmprestimo} onChange={e => setFormData({...formData, valorEmprestimo: Number(e.target.value)})} />
-        </label>
-        
-        <label>Salário (R$):
-          <input type="number" min="1" required value={formData.salario} onChange={e => setFormData({...formData, salario: Number(e.target.value)})} />
-        </label>
+    <main className="pagina">
+      <header className="topo">
+        <span className="selo">Simulador de consignado</span>
+        <h1>
+          Compare seu <span className="destaque">crédito consignado</span>
+        </h1>
+        <p>Preencha os dados e veja, em segundos, a resposta de cada banco parceiro.</p>
+      </header>
 
-        <label>Parcelas (1 a 72):
-          <input type="number" min="1" max="72" required value={formData.parcelas} onChange={e => setFormData({...formData, parcelas: Number(e.target.value)})} />
-        </label>
+      <div className="layout">
+        <SimulationForm carregando={carregando} onSubmit={realizarSimulacao} />
 
-        <button type="submit" disabled={carregando} style={{ padding: '10px', cursor: 'pointer' }}>
-          {carregando ? 'A simular nos bancos...' : 'Simular Empréstimo'}
-        </button>
-      </form>
-
-      {erro && <p style={{ color: 'red' }}><strong>Erro:</strong> {erro}</p>}
-
-      {resultados.length > 0 && (
-        <div>
-          <h2>Resultados da Simulação:</h2>
-          {resultados.map((resultado, index) => (
-            <div key={index} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px', borderRadius: '8px' }}>
-              <h3>{resultado.banco}</h3>
-              <p><strong>Status:</strong> {resultado.status}</p>
-              
-              {resultado.status === 'Aprovado' && (
-                <>
-                  <p><strong>Taxa de Juros:</strong> {(resultado.taxaJurosMensal! * 100).toFixed(2)}% ao mês</p>
-                  <p><strong>Valor da Parcela:</strong> R$ {resultado.valorParcela?.toFixed(2)}</p>
-                  <p><strong>Valor Total:</strong> R$ {resultado.valorTotal?.toFixed(2)}</p>
-                </>
-              )}
-
-              {resultado.status !== 'Aprovado' && (
-                <p><strong>Motivo:</strong> {resultado.motivo}</p>
-              )}
+        <section className="resultados" aria-live="polite">
+          {Object.keys(camposInvalidos).length > 0 && (
+            <div className="alerta" role="alert">
+              <strong>Confira os dados enviados:</strong>
+              <ul>
+                {Object.entries(camposInvalidos).map(([campo, msgs]) => (
+                  <li key={campo}>{campo}: {msgs.join(", ")}</li>
+                ))}
+              </ul>
             </div>
+          )}
+
+          {erro && <div className="alerta" role="alert">{erro}</div>}
+
+          {carregando && (
+            <>
+              <div className="skeleton" />
+              <div className="skeleton" />
+            </>
+          )}
+
+          {!carregando && resultados.length === 0 && !erro &&
+            Object.keys(camposInvalidos).length === 0 && (
+              <p className="vazio">Os resultados dos bancos vão aparecer aqui.</p>
+          )}
+
+          {resultados.map((r) => (
+            <ResultCard key={r.banco} resultado={r} salario={salario} melhorOferta={r === melhor} />
           ))}
-        </div>
-      )}
-    </div>
+
+          {temIndisponivel && ultimaEntrada && !carregando && (
+            <button className="botao botao-secundario"
+              onClick={() => realizarSimulacao(ultimaEntrada)}>
+              Tentar novamente
+            </button>
+          )}
+        </section>
+      </div>
+
+      <footer className="rodape">
+        Ambiente de demonstração: os bancos e os dados são fictícios.
+      </footer>
+    </main>
   );
 }
