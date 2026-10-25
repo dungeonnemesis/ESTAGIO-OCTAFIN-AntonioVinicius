@@ -32,7 +32,7 @@ export class BancoCaixote implements SimuladorBanco {
       return {
         banco: this.nome,
         status: "Reprovado",
-        motivo: resposta.detalhe
+        motivo: resposta.detalhe || "Reprovado pelas políticas do banco"
       };
     }
 
