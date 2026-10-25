@@ -1,29 +1,39 @@
 import express from "express";
 import { SimulacaoService } from "./services/simulation.service.js";
+import { simulacaoSchema } from "./validators/simulation.validator.js";
+import { BancoCaixote } from "./simulators/caixote.simulator.js";
+import { BancoBMJ } from "./simulators/bmj.simulator.js";
 
 const app = express();
 const porta = 3000;
 
-// Middleware: ensina o Express a ler pacotes de dados no formato JSON
 app.use(express.json());
 
-// Rota POST: o endereço de internet que vai receber as simulações
 app.post("/simular", async (req, res) => {
+  // 1. Validação Segura (safeParse não quebra a aplicação, ele retorna 'success: true/false')
+  const validacao = simulacaoSchema.safeParse(req.body);
+
+  if (!validacao.success) {
+    // Se a validação falhar, encerra aqui e devolve o erro 400 com os detalhes
+    return res.status(400).json({ erros: validacao.error.issues });
+  }
+
   try {
-    const servico = new SimulacaoService();
-    // req.body contém os dados brutos que o cliente enviou pela internet
-    const resultados = await servico.processarSimulacoes(req.body);
+    // 2. Instancia os bancos disponíveis
+    const bancos = [new BancoCaixote(), new BancoBMJ()];
+
+    // 3. Injeta a lista de bancos no Serviço (Injeção de Dependência)
+    const servico = new SimulacaoService(bancos);
     
-    // Se deu tudo certo, devolve a resposta com status 200 (OK)
+    // 4. Repassa apenas os dados limpos e validados (validacao.data) para o gerente processar
+    const resultados = await servico.processarSimulacoes(validacao.data);
+    
     res.status(200).json(resultados);
-  } catch (erro: any) {
-    // Se o Zod (segurança) reprovar os dados, o código pula direto para cá
-    // Devolvemos o erro com status 400 (Bad Request - Pedido ruim)
-    res.status(400).json({ erro: erro.issues || "Erro de validação nos dados" });
+  } catch (erro) {
+    res.status(500).json({ erro: "Erro interno no processamento das simulações" });
   }
 });
 
-// Liga o servidor e deixa ele escutando a porta 3000
 app.listen(porta, () => {
   console.log(`🚀 Servidor rodando na porta ${porta}`);
 });
