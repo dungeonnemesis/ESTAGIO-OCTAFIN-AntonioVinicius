@@ -16,9 +16,13 @@ app.post("/simular", async (req, res) => {
   const validacao = simulacaoSchema.safeParse(req.body);
 
   if (!validacao.success) {
-    // Se a validação falhar, encerra aqui e devolve o erro 400 com os detalhes
-    return res.status(400).json({ erros: validacao.error.issues });
+  const erros: Record<string, string[]> = {};
+  for (const issue of validacao.error.issues) {
+    const campo = issue.path.join(".") || "geral";
+    (erros[campo] ??= []).push(issue.message);
   }
+  return res.status(400).json({ erros });
+}
 
   try {
     // 2. Instancia os bancos disponíveis
@@ -32,8 +36,9 @@ app.post("/simular", async (req, res) => {
     
     res.status(200).json(resultados);
   } catch (erro) {
-    res.status(500).json({ erro: "Erro interno no processamento das simulações" });
-  }
+  console.error("Falha ao processar simulação:", erro);
+  res.status(500).json({ erro: "Erro interno no processamento das simulações" });
+}
 });
 
 app.listen(porta, () => {
