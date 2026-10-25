@@ -1,24 +1,44 @@
-import { simulacaoSchema } from "../validators/simulation.validator.js";
-import { BancoCaixote } from "../simulators/caixote.simulator.js";
-import { BancoBMJ } from "../simulators/bmj.simulator.js";
-import type { SaidaSimulacao } from "../types/simulation.js";
+import type { SimuladorBanco } from "../simulators/simulator.interface.js";
+import type { EntradaSimulacao, SaidaSimulacao } from "../types/simulation.js";
 
 export class SimulacaoService {
-  async processarSimulacoes(dadosBrutos: unknown): Promise<SaidaSimulacao[]> {
-    // 1. Validação: O Zod verifica se os dados enviados estão corretos (O Segurança)
-    const dadosValidados = simulacaoSchema.parse(dadosBrutos);
+  private bancos: SimuladorBanco[];
 
-    // 2. Instanciação: Criamos os objetos reais dos bancos a partir das classes (Os Especialistas)
-    const bancoCaixote = new BancoCaixote();
-    const bancoBmj = new BancoBMJ();
+  // O serviço agora recebe a lista de bancos pronta (Injeção de Dependência)
+  constructor(bancos: SimuladorBanco[]) {
+    this.bancos = bancos;
+  }
 
-    // 3. Orquestração: Colocamos os bancos para calcular ao mesmo tempo (O Gerente)
-    const resultados = await Promise.all([
-      bancoCaixote.simular(dadosValidados),
-      bancoBmj.simular(dadosValidados)
-    ]);
+  // Já não recebe 'unknown', recebe os dados tipados e validados pela Rota
+  async processarSimulacoes(dados: EntradaSimulacao): Promise<SaidaSimulacao[]> {
+    
+    // 1. Prepara a simulação de cada banco com um limite de tempo de 3 segundos
+    const promessas = this.bancos.map(async (banco) => {
+      // Cria uma promessa que "explode" (rejeita) após 3 segundos
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout: O banco demorou mais de 3 segundos para responder.")), 3000)
+      );
 
-    // 4. Retorna a lista com as respostas de todos os bancos
-    return resultados;
+      // Disputa (race) entre a simulação real do banco e o cronômetro do timeout
+      return Promise.race([banco.simular(dados), timeout]);
+    });
+
+    // 2. Aguarda que todos os bancos terminem (seja com sucesso ou com erro)
+    const resultadosSettled = await Promise.allSettled(promessas);
+
+    // 3. Formata os resultados finais
+    return resultadosSettled.map((resultado, index) => {
+      if (resultado.status === "fulfilled") {
+        return resultado.value; // Se deu certo, devolve a proposta do banco
+      } else {
+        // Se falhou (erro interno do banco ou timeout), devolvemos "Indisponivel"
+        const bancoQueFalhou = this.bancos[index];
+        return {
+          banco: bancoQueFalhou?.nome || "Banco Desconhecido",
+          status: "Indisponivel",
+          motivo: resultado.reason instanceof Error ? resultado.reason.message : "Falha desconhecida no banco."
+        };
+      }
+    });
   }
 }
