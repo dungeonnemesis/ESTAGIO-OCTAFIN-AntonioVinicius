@@ -20,22 +20,32 @@ export default function App() {
     setUltimaEntrada(entrada);
 
     try {
-      setResultados(await simular(entrada));
+      const res = await simular(entrada);
+      setResultados(res);
     } catch (err) {
-      if (err instanceof ErroValidacao) setCamposInvalidos(err.campos);
-      else setErro(err instanceof Error ? err.message : "Erro inesperado.");
+      if (err instanceof ErroValidacao) {
+        setCamposInvalidos(err.campos);
+      } else {
+        setErro(err instanceof Error ? err.message : "Erro inesperado.");
+      }
     } finally {
       setCarregando(false);
     }
   };
 
-  // Melhor oferta: menor valor total entre os aprovados (só faz sentido com 2 ou mais)
+  // 1. Filtra apenas os bancos que aprovaram e garante que o valorTotal é um número
   const aprovados = resultados.filter(
-    (r) => r.status === "Aprovado" && r.valorTotal !== undefined
+    (r) => r.status === "Aprovado" && typeof r.valorTotal === "number"
   );
+  
+  // 2. Encontra a melhor oferta comparando os valores de forma segura para o TypeScript
   const melhor =
-    aprovados.length > 1
-      ? aprovados.reduce((a, b) => (a.valorTotal! <= b.valorTotal! ? a : b))
+    aprovados.length > 0
+      ? aprovados.reduce((menor, atual) => {
+          const valorMenor = menor.valorTotal ?? Infinity;
+          const valorAtual = atual.valorTotal ?? Infinity;
+          return valorAtual < valorMenor ? atual : menor;
+        })
       : null;
 
   const temIndisponivel = resultados.some((r) => r.status === "Indisponivel");
@@ -81,7 +91,13 @@ export default function App() {
           )}
 
           {resultados.map((r) => (
-            <ResultCard key={r.banco} resultado={r} salario={salario} melhorOferta={r === melhor} />
+            <ResultCard 
+              key={r.banco} 
+              resultado={r} 
+              salario={salario} 
+              // A comparação pelo nome do banco evita erros de referência no React
+              melhorOferta={melhor !== null && r.banco === melhor.banco} 
+            />
           ))}
 
           {temIndisponivel && ultimaEntrada && !carregando && (
