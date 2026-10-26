@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// Função auxiliar para validar o dígito verificador do CPF do gemini
+// Função auxiliar para validar o dígito verificador do CPF
 function validaCPF(cpf: string) {
   if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
   let soma = 0, resto;
@@ -48,17 +48,20 @@ export const simulacaoSchema = z.object({
   email: z.string().email("Email inválido"),
   
   cpf: z.string()
-    .transform(val => val.replace(/[^\d]/g, "")) // Remove pontos e traços antes de validar
-    .refine(val => validaCPF(val), "CPF inválido"), // Aplica a matemática do dígito verificador
+    .transform(val => val.replace(/[^\d]/g, ""))
+    .refine(val => validaCPF(val), "CPF inválido"),
     
   cnpj: z.string()
     .transform(val => val.replace(/[^\d]/g, ""))
     .refine(val => validaCNPJ(val), "CNPJ inválido"),
 
-  valorEmprestimo: z.number().positive("O valor do empréstimo deve ser maior que zero"),
-  salario: z.number().positive("O salário deve ser maior que zero"),
+  valorEmprestimo: z.coerce.number()
+    .positive("O valor do empréstimo deve ser maior que zero"),
   
-  parcelas: z.number()
+  salario: z.coerce.number()
+    .positive("O salário deve ser maior que zero"),
+  
+  parcelas: z.coerce.number()
     .int("O número de parcelas deve ser inteiro")
     .min(1, "O número mínimo de parcelas é 1")
     .max(72, "O número máximo de parcelas permitido é 72"),
